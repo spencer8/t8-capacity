@@ -661,31 +661,60 @@
        * appropriate message is printed.
        */
       function listUpcomingEvents() {
+        var gCalTimeMax = new Date(now);
+            gCalTimeMax.setDate(gCalTimeMax.getDate() + 60);
+        // console.log(now.toISOString() + "  "+ gCalTimeMax);
+
         gapi.client.calendar.events.list({
           'calendarId': 'primary',
-          'timeMin': (new Date()).toISOString(),
+          'timeMin': now.toISOString(),
+          'timeMax': gCalTimeMax.toISOString(),
           'showDeleted': false,
           'singleEvents': true,
-          'maxResults': 50,
           'orderBy': 'startTime'
         }).then(function(response) {
           var events = response.result.items;
+          // appendPre(JSON.stringify(events));
+
           appendPre('Upcoming events:');
 
           if (events.length > 0) {
             for (i = 0; i < events.length; i++) {
               var event = events[i];
               var when = event.start.dateTime;
-              if (!when) {
-                when = event.start.date;
+              if(when){
+                var timeDiff = new Date(event.end.dateTime) - new Date(event.start.dateTime);
+                var effortHours = (Math.round( (timeDiff / 3600000 )* 4) / 4).toFixed(2);
+              }else{
+
+                var daysOff = [];
+                currentDate = new Date(event.start.date).getTime(),
+                stopDate = new Date(event.end.date).getTime();
+                  console.log(currentDate+" "+event.end.date);
+
+                while (currentDate < stopDate) {
+
+                  saveDate = new Date(currentDate);
+                  daysOff.push(saveDate);
+                  saveDate.setDate(saveDate.getDate() + 1);
+
+                  currentDate = new Date(saveDate).getTime();
+                  console.log(saveDate+" "+event.end.date);
+                }
+
+
+                // var daysOff = getDates(event.start.date, event.end.date);
+                when = JSON.stringify(daysOff);
               }
-              appendPre(event.summary + ' (' + when + ')')
+
+              appendPre(event.summary + ' (' + when + ')');
             }
           } else {
             appendPre('No upcoming events found.');
           }
         });
       }
+
 
   </script>
   <script async defer src="https://apis.google.com/js/api.js"
