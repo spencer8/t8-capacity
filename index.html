@@ -1,0 +1,568 @@
+<html>
+  <head>
+    <title>Capacity Calendar</title>
+    <link rel="stylesheet" media="screen" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+
+<style type="text/css">
+  table.calendar {
+    width: 100%;
+    margin:40px 0;
+    table-layout: fixed;
+  }
+
+  table.calendar th {
+    width: 20%;
+  }
+  table.calendar tbody td {
+    border-right: 1px solid #fff;
+  }
+  .entries ul {
+    height: 282px;
+    box-sizing: border-box;
+    padding: 20px 10px 20px 30px;
+    background: repeating-linear-gradient( 0deg, #bbb 21px, #bbb 50px, #888 50px, #888 51px );
+    position: relative;
+  }
+  .entries td:first-child ul:before {
+    content: '1h 2h 3h 4h 5h 6h 7h 8h';
+    position: absolute;
+    left: 5px;
+    top: 30px;
+    width: 3ch;
+    line-height: 30px;
+    color: #888;
+    font-size: 11px;
+  }
+  .entries ul li {
+    font-size:12px;
+    background-color: #ddd;
+    border-top: 1px solid #bbb;
+    list-style: none;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding:5px 5px 5px 10px;
+    position:relative;
+  }
+  .entries ul li.ontime:after,
+  .entries ul li.overdue:after {
+    content:'';
+    top:5px;
+    right: 5px;
+    height:10px;
+    width: 10px;
+    border-radius: 50%;
+    background-color:green;
+    position: absolute;
+  }
+  .entries ul li.overdue:after {
+    background-color:red;
+  }
+  .entries ul li span {
+    display:block;
+  }
+  .entries ul li span.colorbar {
+    position:absolute;
+    height: 100%;
+    width:5px;
+    margin:0;
+    padding: 0;
+    top: 0;
+    left: 0;
+    background-color: #444;
+  } 
+
+</style>
+
+
+  </head>
+  <body>
+    <div class="container">
+      <h1>Capacity Calendar</h1>
+      <div id="calendar">
+        <table class="calendar">
+          <thead class="daysofweek">
+            <tr>
+              <th>Mon</th>
+              <th>Tue</th>
+              <th>Wed</th>
+              <th>Thu</th>
+              <th>Fri</th>
+            </tr>
+          </thead>
+          <tbody class="entries">
+            <tr></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="container">
+      <div id="output"></div>
+    </div> 
+  </body>
+
+  <script src="http://code.jquery.com/jquery-1.11.3.min.js" type="text/javascript"></script>
+  <!-- REPLACE AppKey WITH YOUR APPLICATION KEY -->
+  <script src="https://api.trello.com/1/client.js?key=acc74e90fe496296b481d092a4897134"></script>
+  
+  <script type="text/javascript">
+
+    var openBoards = [],
+      cardBoards = [],
+      taskCards = [],
+
+      freshBoards = {},
+      boardColors ={},
+      tasksToSchedule = {},
+      tasksToScheduleOrdered = {},
+      cardDays = {}, // object of days in workDays, each day contains an array of card ids for easy checking of dups
+
+      totalEffortFound = 0,
+      totalEffortScheduled = 0,
+      totalEffortAvailable = 0,
+      lastDueDate = 0,
+      schedCycles = 0,
+
+      maxDailyTaskEffort = 3,
+      hoursInDay = 8;
+
+    var workDays = {
+      // date : {
+      //       hoursLeft : 8,
+      //       trello : {
+      //         taskId : {
+      //           name : "name",
+      //           hours : "hours",
+      //           idBoard : "idBoard",
+      //           boardName : "boardName"
+      //         }
+      //       }
+      //     }
+    };
+
+    var workDaysArr = [],
+    dueDaysToScheduleArr = [];
+
+    var now = new Date();
+    var startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var today = startOfDay*1;
+
+    var buildCalendar = function() {
+
+
+      var calD = new Date();
+          calD.setDate(calD.getDate() - 1);
+      var dayOfWeek = calD.getDay();
+      var dayOfMonth = calD.getDate();
+      
+      if(dayOfWeek == 1){
+
+        $('#calendar tbody').append("<tr></tr>");
+
+      }
+
+      for(var i=1; i <= dayOfWeek; i++){
+
+
+        var day = (dayOfMonth + i - 1) + "<ul></ul>";
+        console.log(i+"|"+dayOfWeek+"|"+"day");
+
+
+        $('#calendar tbody tr:last-child').append("<td>"+ day +"</td>");
+
+
+      }
+
+      
+      for(var i=0; i < workDaysArr.length; i++) {
+
+        var dKey = workDaysArr[i];
+
+        calD = new Date(dKey);
+        dayOfWeek = calD.getDay();
+        dayOfMonth = calD.getDate();
+        
+        if(dayOfWeek == 1){
+
+          $('#calendar tbody').append("<tr></tr>");
+
+        }
+
+        var day = dayOfMonth + "<ul></ul>";
+
+        $('#calendar tbody tr:last-child').append("<td>"+ day +"</td>");
+
+        
+        // console.log(workDays[dKey].trello.length);
+
+        for(var inc=0; inc < workDays[dKey].trello.length; inc++) {
+
+          for (var cardId in workDays[dKey].trello[inc]) {
+            if (workDays[dKey].trello[inc].hasOwnProperty(cardId)) {
+
+              // console.log(JSON.stringify(workDays[dKey].trello[inc]));
+
+              var tCard = workDays[dKey].trello[inc][cardId];
+              var cardHeight = (tCard.effort/8)*100;
+              var classNames = '';
+              if(tCard.last){
+                var cardDue = new Date(tCard.due).getTime();
+                if( (cardDue) >= dKey ){
+                  classNames += "ontime ";
+                }else{
+                  // console.log(cardDue+"-"+dKey);
+                  classNames += "overdue ";
+                }
+              }
+
+
+              $('#calendar tbody tr:last-child td:last-child ul').append('<li class="'+ classNames +'" style="height:'+cardHeight+'%;" data-toggle="tooltip" data-placement="top" title="['+ tCard.effort +'] '+ tCard.name +'"><span class="boardname">'+tCard.boardName+'</span><span class="cardname">['+tCard.effort +'] '+ tCard.name +'</span><span class="duedate">'+tCard.due +'</span><span class="colorbar" style="background-color:'+ boardColors[tCard.idBoard] +';"></span></li>');
+
+            }
+          }
+        }
+      }
+      // console.log(JSON.stringify(workDaysArr));
+    };
+
+    function timeAvailable(cardId, cardItem, dKey) {
+
+      schedCycles++;
+      
+      var effort = tasksToSchedule[dKey][cardId]["effort"];
+      var scheduleEffort = 0,
+          isLastEntry = false;
+
+      var roomForCard = workDaysArr.some(function(dueDayItem) {
+
+        if(effort <= maxDailyTaskEffort){
+          scheduleEffort = effort;
+          isLastEntry = true;
+
+        } else {
+          scheduleEffort = maxDailyTaskEffort;
+        }
+
+        if(scheduleEffort <= workDays[dueDayItem]["hoursLeft"]){
+        
+
+          //check the trello array section of the workDays obj to see if this task is already placed on this day. Only save this task to this day if its not already there.
+          //var result = $.grep(workDays[dueDayItem].trello, function(e){ return e.cardId == cardId; });
+
+          // var dupCardCheck = Object.values(workDays[dueDayItem].trello[0]);
+          // console.log(JSON.stringify(dupCardCheck));
+
+          if ( !(cardDays[dueDayItem].includes(cardId)) ) {
+
+//TODO: still stacking multiples of the same card on one day
+
+            // console.log(dueDayItem + " : " + workDays[dueDayItem]["hoursLeft"] + " | " + cardItem.name + " : " + scheduleEffort);
+              
+            workDays[dueDayItem]["hoursLeft"] -= scheduleEffort;
+
+            //cardItem.effort = scheduleEffort;
+//TODO: effort is still getting overwritten by last entry, so all instances of this task match the last effort. Calculations to day's effort is still correct.
+
+            var cardObj = {
+              cardId : {
+                name : cardItem.name,
+                idBoard : cardItem.idBoard,
+                boardName : cardItem.boardName,
+                effort : scheduleEffort,
+                due: cardItem.due,
+                last: isLastEntry
+              }
+            };
+
+            // console.log(scheduleEffort +" "+ effort);
+            workDays[dueDayItem].trello.push(cardObj);
+            cardDays[dueDayItem].push(cardId);
+            // console.log(JSON.stringify(workDays[dueDayItem].trello));
+
+            tasksToSchedule[dKey][cardId]["effort"] -= scheduleEffort;
+            totalEffortScheduled += Number(scheduleEffort);
+            totalEffortAvailable -= Number(scheduleEffort);
+
+            return true;
+          }
+        }
+      });
+
+      if(effort > maxDailyTaskEffort){
+        if(roomForCard && scheduleEffort <= totalEffortAvailable){
+          timeAvailable(cardId, cardItem, dKey);
+          // console.log(scheduleEffort+" "+totalEffortAvailable+ " |1 "+schedCycles);
+        }else{
+          if(totalEffortScheduled < totalEffortFound && schedCycles < 800){
+            var lastDate = workDaysArr[workDaysArr.length - 1]
+            var dat = new Date(lastDate);
+            dat.setDate(dat.getDate() + 1);
+            addOneWorkday(dat*1);
+
+            // console.log("Added TIME");
+
+            timeAvailable(cardId, cardItem, dKey);
+
+          }else{
+            // console.log("OUT OF TIME "+totalEffortScheduled+" "+totalEffortFound+ " |3 "+schedCycles);
+            $('#output').append("<p>unscheduled effort: " + (totalEffortFound - totalEffortScheduled) + "</p>");
+          }
+
+        }
+      }
+    }
+
+
+    var scheduleTasks = function() {
+      
+      workDaysArr.sort();
+      dueDaysToScheduleArr.sort();
+      //console.log(dueDaysToScheduleArr.toString());
+
+
+      //taskKeys = Object.keys(tasksToScheduleOrdered);
+
+      for(var i=0; i < dueDaysToScheduleArr.length; i++) {
+
+        var dKey = dueDaysToScheduleArr[i];
+
+        //console.log(JSON.stringify(tasksToSchedule[dKey]));
+
+        for (var cardId in tasksToSchedule[dKey]) {
+          if (tasksToSchedule[dKey].hasOwnProperty(cardId)) {
+
+            if(cardId != 'dueDay') {
+              
+              cardItem = {
+                name : tasksToSchedule[dKey][cardId]["name"],
+                idBoard : tasksToSchedule[dKey][cardId]["idBoard"],
+                boardName : tasksToSchedule[dKey][cardId]["boardName"],
+                due: tasksToSchedule[dKey][cardId].due,
+              };
+              
+              timeAvailable(cardId, cardItem, dKey);
+
+            }
+          }
+        }
+
+
+      }
+      $('#output').append("<p>total effort in tasks: " + totalEffortFound + "</p><p>total effort available: " + totalEffortAvailable + "</p><p>total effort scheduled: " + totalEffortScheduled + "</p>");
+      buildCalendar();
+
+      // var dateTime = new Date(lastDueDate);
+      //     dateTime.toISOString();
+
+      // $('#output').append("<p>total effort to be scheduled: " + totalEffortFound + "</p><p>last due date: " + dateTime + "</p>" + JSON.stringify(tasksToScheduleOrdered));
+
+    };
+
+    var addOneWorkday = function(timestamp) {
+      // console.log(timestamp +" "+ totalEffortAvailable +" "+ totalEffortFound +" "+ totalEffortScheduled);
+      var a = new Date(timestamp);
+      var dayOfWeek = a.getDay();
+      if(dayOfWeek != 0 && dayOfWeek != 6){
+        workDays[timestamp] = {
+          hoursLeft : hoursInDay,
+          trello : []
+        };
+        totalEffortAvailable += hoursInDay;
+        workDaysArr.push(timestamp);
+        cardDays[timestamp] = [];
+      }else{
+        var dat = new Date(timestamp);
+        dat.setDate(dat.getDate() + 1);
+        addOneWorkday(dat*1);
+      }
+    };
+
+    var addWorkday = function(timestamp) {
+      // if(timestamp < lastDueDate){ // schedule only up to last due date from trello cards
+        // console.log(totalEffortAvailable +" "+ totalEffortFound +" "+ totalEffortScheduled);
+      if(totalEffortAvailable < totalEffortFound ){
+        var a = new Date(timestamp);
+        var dayOfWeek = a.getDay();
+        if(dayOfWeek != 0 && dayOfWeek != 6){
+          workDays[timestamp] = {
+            hoursLeft : hoursInDay,
+            trello : []
+          };
+          totalEffortAvailable += hoursInDay;
+          workDaysArr.push(timestamp);
+          cardDays[timestamp] = [];
+        }
+        var dat = new Date(timestamp);
+        dat.setDate(dat.getDate() + 1);
+        addWorkday(dat*1);
+      }
+    };
+
+    var buildWorkdays = function() {
+
+      addWorkday(today);
+
+      scheduleTasks();
+
+      //$('#output').append(JSON.stringify(workDays));
+      //$('#output').append(today+" "+lastDueDate+" "+JSON.stringify(workDays));
+    };
+
+    var showCards = function() {
+
+      //iterate through taskCards and cycle cards on boards from freshBoards to new array
+      $.each(taskCards, function(index, value) {
+
+        var keyBoard = value.idBoard;
+
+        if(value.idBoard in freshBoards){
+           
+          var taskSplit = value.name.split("]",2);
+              taskEffort = taskSplit[0].replace(/[^0-9.]/g, "");
+              taskEffort = Number(taskEffort);
+              
+              if($.isNumeric(taskEffort)){
+
+                // console.log(taskEffort);
+  
+                totalEffortFound += taskEffort;
+
+                var now = new Date(value.due);
+                var dueDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                var dueStamp = dueDay*1;
+
+                if (!(dueStamp in tasksToSchedule)) {
+                  tasksToSchedule[dueStamp] = {
+                    dueDay : dueDay
+                  };
+                  dueDaysToScheduleArr.push(dueStamp);
+                }
+
+                tasksToSchedule[dueStamp][value.id] = {
+                  effort: taskEffort,
+                  name: taskSplit[1],
+                  due: value.due,
+                  idBoard: value.idBoard,
+                  boardName: freshBoards[value.idBoard]
+                };
+
+                var dueTimestamp = new Date(value.due).getTime();
+                if(lastDueDate < dueTimestamp){
+                  lastDueDate = dueTimestamp;
+                }
+
+              }
+
+              
+
+          //$('#output').append('<p>' + value.idBoard + " : " + taskSplit[1] + "</p>");
+        
+        } else {
+          // $('#output').append("<p>" + value.idBoard + " not fresh</p>");
+        }
+
+      });
+          //process time number into new variable, save only relevant data to new array
+
+      //iterate through new array of cards and lay out timeline?
+
+      buildWorkdays();
+
+    };
+
+    var loadedBoards = function(boards) {
+      $.each(boards, function(index, value) {
+         
+
+        if(value.closed == false){
+
+          // check if this board is in array of boards with my active cards in it
+          if(cardBoards.indexOf(value.id) >= 0){
+
+            openBoards.push(value.id);
+
+            var daysSinceFresh = 21,
+                boardTime = new Date(value.dateLastActivity).getTime();
+            var freshDate = new Date();
+                freshDate.setDate(freshDate.getDate() - daysSinceFresh);
+            var freshTimestamp = new Date(freshDate).getTime();
+
+            if(boardTime > freshTimestamp) {
+              // $('#boards')
+              // .append($("<li></li>")
+              // .attr("data-id",value.id)
+              // .text(value.name));
+
+              freshBoards[value.id] = value.name;
+              boardColors[value.id] = value.prefs.background;
+
+            }
+          }
+        }
+      });
+
+      // console.log(JSON.stringify(boardColors));
+
+      showCards();
+
+      //t8GetActiveCards();
+    };
+    var loadBoards = function() {
+      //Get the users boards
+      Trello.get(
+        '/members/me/boards/',
+        loadedBoards,
+        function() { console.log("Failed to load boards"); }
+      );
+    };
+
+    var loadedCards = function(cards) {
+      $.each(cards, function(index, value) {
+         
+        if(value.closed == false){
+
+          if(value.dueComplete == false){
+            if(value.due != null){ 
+              //TODO: could collect the cards without due dates and post a notice of how many cards/hours are not scheduled
+              var cardName = JSON.stringify(value.name);
+              
+              if(cardName.includes("[")){
+
+                taskCards.push(value);
+                cardBoards.push(value.idBoard);
+
+              }
+            }
+          }
+        }
+
+      });
+
+      loadBoards();
+
+
+    };
+    var loadMyCards = function() {
+      //Get the users boards
+      Trello.get(
+        '/members/me/cards/',
+        loadedCards,
+        function() { console.log("Failed to load cards"); }
+      );
+    };
+
+    var authenticationSuccess = function() { console.log('Successful authentication'); };
+    var authenticationFailure = function() { console.log('Failed authentication'); };
+    
+    Trello.authorize({
+      type: "popup",
+      name: "Trello dashboard",
+      scope: {
+        read: true,
+        write: false 
+      },
+      expiration: "never",
+      success: loadMyCards,
+      error: authenticationFailure
+    });
+  </script>
+</html>
