@@ -238,7 +238,8 @@
                 }
               }
               var dueDate = new Date(tCard.due);
-              var displayDueDate = weekday[dueDate.getDay()] + " " + dueDate.getMonth() + "/" + dueDate.getDate();
+              var dueMonth = dueDate.getMonth() + 1;
+              var displayDueDate = weekday[dueDate.getDay()] + " " + dueMonth + "/" + dueDate.getDate();
 
               $('#calendar tbody tr:last-child td:last-child ul').append('<li class="'+ classNames +'" style="height:'+cardHeight+'%;" data-toggle="tooltip" data-placement="top" data-html="true" title="<h5>'+tCard.boardName+'</h5><p>['+ tCard.effort +'] '+ tCard.name +'</p><p>Due: '+ displayDueDate +'</p>"><span class="boardname">'+tCard.boardName+'</span><span class="cardname">['+tCard.effort +'] '+ tCard.name +'</span><span class="duedate">Due: '+ displayDueDate +'</span><span class="colorbar" style="background-color:'+ boardColors[tCard.idBoard] +';"></span></li>');
 
