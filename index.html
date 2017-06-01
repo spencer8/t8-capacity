@@ -45,11 +45,17 @@
     list-style: none;
     box-sizing: border-box;
     overflow: hidden;
-    padding:5px 5px 5px 10px;
+    padding:0;
     position:relative;
   }
   .entries ul li:hover {
     background-color: white;
+  }
+  .entries li a {
+    display: block;
+    padding: 5px 5px 5px 10px;
+    color:#292b2c;
+    text-decoration: none;
   }
 
   .entries ul li.ontime:after,
@@ -241,7 +247,7 @@
               var dueMonth = dueDate.getMonth() + 1;
               var displayDueDate = weekday[dueDate.getDay()] + " " + dueMonth + "/" + dueDate.getDate();
 
-              $('#calendar tbody tr:last-child td:last-child ul').append('<li class="'+ classNames +'" style="height:'+cardHeight+'%;" data-toggle="tooltip" data-placement="top" data-html="true" title="<h5>'+tCard.boardName+'</h5><p>['+ tCard.effort +'] '+ tCard.name +'</p><p>Due: '+ displayDueDate +'</p>"><span class="boardname">'+tCard.boardName+'</span><span class="cardname">['+tCard.effort +'] '+ tCard.name +'</span><span class="duedate">Due: '+ displayDueDate +'</span><span class="colorbar" style="background-color:'+ boardColors[tCard.idBoard] +';"></span></li>');
+              $('#calendar tbody tr:last-child td:last-child ul').append('<li class="'+ classNames +'" style="height:'+cardHeight+'%;" data-toggle="tooltip" data-placement="top" data-html="true" title="<h5>'+tCard.boardName+'</h5><p>['+ tCard.effort +'] '+ tCard.name +'</p><p>Due: '+ displayDueDate +'</p>"><a href="'+ tCard.url +'" target="_blank"><span class="boardname">'+tCard.boardName+'</span><span class="cardname">['+tCard.effort +'] '+ tCard.name +'</span><span class="duedate">Due: '+ displayDueDate +'</span><span class="colorbar" style="background-color:'+ boardColors[tCard.idBoard] +';"></span></a></li>');
 
             }
           }
@@ -295,6 +301,7 @@
                 boardName : cardItem.boardName,
                 effort : scheduleEffort,
                 due: cardItem.due,
+                url: cardItem.url,
                 last: isLastEntry
               }
             };
@@ -363,6 +370,7 @@
                 idBoard : tasksToSchedule[dKey][cardId]["idBoard"],
                 boardName : tasksToSchedule[dKey][cardId]["boardName"],
                 due: tasksToSchedule[dKey][cardId].due,
+                url: tasksToSchedule[dKey][cardId].url
               };
               
               timeAvailable(cardId, cardItem, dKey);
@@ -468,7 +476,8 @@
                   name: taskSplit[1],
                   due: value.due,
                   idBoard: value.idBoard,
-                  boardName: freshBoards[value.idBoard]
+                  boardName: freshBoards[value.idBoard],
+                  url: value.url
                 };
 
                 var dueTimestamp = new Date(value.due).getTime();
